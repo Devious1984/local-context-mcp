@@ -18,6 +18,18 @@ npx local-context-mcp
 
 This indexes the current directory and starts the MCP server. First run may take a few minutes depending on codebase size.
 
+### Command Line Options
+
+```bash
+local-context-mcp --path /path/to/index    # Directory to index
+local-context-mcp --help                    # Show help
+```
+
+Or set environment variable:
+```bash
+LOCAL_CONTEXT_PATH=/path/to/index npx local-context-mcp
+```
+
 ## MCP Integration
 
 ### Claude Code
@@ -47,16 +59,16 @@ Add to your OpenCode config:
 | Tool | Description |
 |------|-------------|
 | `reindex` | Index the current codebase for semantic search. Use after adding/changing files. |
-| `search` | Search the indexed codebase using natural language queries. |
+| `search_code` | Search the indexed codebase using natural language. Returns code implementations first. |
 | `status` | Get current indexing status (file count, chunk count). |
 
 ### Search Example
 
 ```
-> search: "how does the search function work"
+> search_code: "async insert function"
 ```
 
-Returns relevant code snippets with file paths and line numbers.
+Returns relevant code snippets with file paths and line numbers. Results prioritize code implementations over documentation.
 
 ## How It Works
 
@@ -68,7 +80,11 @@ Files → AST Parser → Chunks → Embeddings → USearch → Retrieval
 2. **Chunking**: Splits code into semantic chunks using tree-sitter AST parsing
 3. **Embedding**: Generates vector embeddings for each chunk
 4. **Indexing**: Stores vectors in USearch for fast similarity search
-5. **Retrieval**: Finds most relevant chunks for your query
+5. **Retrieval**: Finds most relevant chunks using hybrid scoring:
+   - 50% semantic similarity (embedding match)
+   - 25% keyword matching (query identifiers in code)
+   - 15% file type (code files prioritized over docs)
+   - 10% chunk type (functions/methods prioritized)
 
 ## Storage
 
