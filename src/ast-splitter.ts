@@ -172,6 +172,28 @@ export class AstCodeSplitter implements Splitter {
         this.langchainFallback.setChunkOverlap(chunkOverlap);
     }
 
+    private getChunkType(nodeType: string): string {
+        const typeMap: Record<string, string> = {
+            'function_definition': 'function',
+            'function_declaration': 'function',
+            'method_declaration': 'method',
+            'function_item': 'function',
+            'class_specifier': 'class',
+            'class_declaration': 'class',
+            'interface_declaration': 'interface',
+            'struct_declaration': 'struct',
+            'enum_item': 'enum',
+            'declaration': 'declaration',
+            'namespace_definition': 'namespace',
+            'module_definition': 'module',
+            'import_statement': 'import',
+            'export_statement': 'export',
+            'variable_declaration': 'variable',
+            'const_declaration': 'constant',
+        };
+        return typeMap[nodeType] || 'code';
+    }
+
     private extractChunks(
         node: SyntaxNode,
         code: string,
@@ -196,6 +218,8 @@ export class AstCodeSplitter implements Splitter {
                             endLine,
                             language,
                             filePath,
+                            chunkType: this.getChunkType(currentNode.type),
+                            nodeType: currentNode.type,
                         }
                     });
                 }

@@ -68,3 +68,6 @@ repos
 
 evaluation/retrieval_results*
 .venv/
+
+# Local search index
+.usearch/

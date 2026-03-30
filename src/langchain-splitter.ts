@@ -28,6 +28,7 @@ export class LangChainCodeSplitter implements Splitter {
                         endLine: currentStartLine + lineCount - 1,
                         language,
                         filePath,
+                        chunkType: this.detectChunkType(currentChunk),
                     }
                 });
 
@@ -49,11 +50,26 @@ export class LangChainCodeSplitter implements Splitter {
                     endLine: currentStartLine + lineCount - 1,
                     language,
                     filePath,
+                    chunkType: this.detectChunkType(currentChunk),
                 }
             });
         }
 
         return chunks;
+    }
+
+    private detectChunkType(content: string): string {
+        const firstLine = content.split('\n')[0].trim();
+        
+        if (/^(export\s+)?(async\s+)?function\s+\w+/.test(firstLine)) return 'function';
+        if (/^(export\s+)?(async\s+)?class\s+\w+/.test(firstLine)) return 'class';
+        if (/^(export\s+)?interface\s+\w+/.test(firstLine)) return 'interface';
+        if (/^(export\s+)?enum\s+\w+/.test(firstLine)) return 'enum';
+        if (/^(export\s+)?(const|let|var)\s+\w+\s*=/.test(firstLine)) return 'variable';
+        if (/^import\s+/.test(firstLine)) return 'import';
+        if (/^export\s+/.test(firstLine)) return 'export';
+        
+        return 'code';
     }
 
     setChunkSize(chunkSize: number): void {

@@ -173,8 +173,57 @@ class LocalContextMcpServer {
     }
 }
 
+interface CliArgs {
+    path?: string;
+    indexDir?: string;
+    help?: boolean;
+}
+
+function parseArgs(): CliArgs {
+    const args: CliArgs = {};
+    const argv = process.argv.slice(2);
+    
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        switch (arg) {
+            case '--path':
+            case '-p':
+                args.path = argv[++i];
+                break;
+            case '--index-dir':
+            case '-i':
+                args.indexDir = argv[++i];
+                break;
+            case '--help':
+            case '-h':
+                args.help = true;
+                break;
+        }
+    }
+    
+    return args;
+}
+
+function printHelp() {
+    console.error(`Usage: local-context-mcp [options]
+Options:
+  --path, -p <dir>      Directory to index (default: current directory)
+  --index-dir, -i <dir> Directory for index storage (default: .usearch)
+  --help, -h            Show this help message`);
+}
+
 async function main() {
-    const context = createLocalContext();
+    const args = parseArgs();
+    
+    if (args.help) {
+        printHelp();
+        process.exit(0);
+    }
+    
+    const context = createLocalContext({
+        rootPath: args.path,
+        indexDir: args.indexDir
+    });
     const server = new LocalContextMcpServer(context);
     await server.start();
 }

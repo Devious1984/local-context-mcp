@@ -73,6 +73,7 @@ export interface LocalContextConfig {
     supportedExtensions?: string[];
     ignorePatterns?: string[];
     rootPath?: string;
+    indexDir?: string;
 }
 
 export class LocalContext {
@@ -85,8 +86,12 @@ export class LocalContext {
 
     constructor(config: LocalContextConfig = {}) {
         this.embedding = config.embedding || createEmbedding();
+        const rootPath = config.rootPath || process.env.LOCAL_CONTEXT_PATH || process.cwd();
+        const indexDir = config.indexDir || process.env.LOCAL_CONTEXT_INDEX_DIR || '.usearch';
+        const persistPath = path.join(rootPath, indexDir);
+        
         this.vectorDatabase = config.vectorDatabase || new USearchVectorDatabase({
-            persistPath: config.rootPath || process.cwd()
+            persistPath
         });
         this.codeSplitter = new AstCodeSplitter(2500, 300);
         this.supportedExtensions = [
@@ -97,9 +102,10 @@ export class LocalContext {
             ...DEFAULT_IGNORE_PATTERNS,
             ...(config.ignorePatterns || [])
         ];
-        this.rootPath = config.rootPath || process.cwd();
+        this.rootPath = rootPath;
 
         console.error(`[LocalContext] Initialized at: ${this.rootPath}`);
+        console.error(`[LocalContext] Index dir: ${persistPath}`);
         console.error(`[LocalContext] Embedding: ${this.embedding.getProvider()}`);
     }
 
@@ -207,6 +213,8 @@ export class LocalContext {
             const endLine = chunk.metadata?.endLine || 1;
             const language = chunk.metadata?.language || 'text';
             const relativePath = path.relative(this.rootPath, filePath);
+            const chunkType = chunk.metadata?.chunkType;
+            
             return {
                 id: this.generateId(relativePath, startLine, endLine, chunk.content),
                 content: chunk.content,
@@ -215,7 +223,7 @@ export class LocalContext {
                 startLine,
                 endLine,
                 fileExtension: path.extname(filePath),
-                metadata: { language }
+                metadata: { language, chunkType }
             };
         });
 
@@ -235,17 +243,111 @@ export class LocalContext {
         const results: VectorSearchResult[] = await this.vectorDatabase.search(
             collectionName,
             queryEmbedding.vector,
-            { topK }
+            { topK: topK * 3 }
         );
 
-        return results.map(result => ({
-            content: result.document.content,
-            relativePath: result.document.relativePath,
-            startLine: result.document.startLine,
-            endLine: result.document.endLine,
-            language: result.document.metadata.language || 'unknown',
-            score: result.score
+        const queryKeywords = this.extractKeywords(query);
+        const boostedResults = results.map(result => {
+            const doc = result.document;
+            const metadata = doc.metadata || {};
+            
+            const semanticScore = result.score;
+            const keywordScore = this.calculateKeywordScore(doc.content, queryKeywords);
+            const fileTypeScore = this.getFileTypeScore(doc.relativePath);
+            const chunkTypeScore = this.getChunkTypeScore(metadata.chunkType);
+            
+            const finalScore = (
+                semanticScore * 0.5 +
+                keywordScore * 0.25 +
+                fileTypeScore * 0.15 +
+                chunkTypeScore * 0.10
+            );
+
+            return {
+                content: doc.content,
+                relativePath: doc.relativePath,
+                startLine: doc.startLine,
+                endLine: doc.endLine,
+                language: metadata.language || 'unknown',
+                score: finalScore,
+                _semanticScore: semanticScore,
+                _keywordScore: keywordScore,
+                _fileTypeScore: fileTypeScore,
+                _chunkTypeScore: chunkTypeScore,
+            };
+        });
+
+        boostedResults.sort((a, b) => b.score - a.score);
+
+        return boostedResults.slice(0, topK).map(r => ({
+            content: r.content,
+            relativePath: r.relativePath,
+            startLine: r.startLine,
+            endLine: r.endLine,
+            language: r.language,
+            score: r.score
         }));
+    }
+
+    private extractKeywords(query: string): string[] {
+        const camelCaseWords = query.split(/(?=[A-Z])|[-_\s]/).filter(w => w.length > 1);
+        const identifierPattern = /[a-zA-Z_][a-zA-Z0-9_]*/g;
+        const identifiers = query.match(identifierPattern) || [];
+        
+        const all = [...camelCaseWords, ...identifiers];
+        const unique = [...new Set(all.map(w => w.toLowerCase()))];
+        return unique.filter(w => w.length > 2 && !this.isCommonWord(w)).slice(0, 10);
+    }
+
+    private isCommonWord(word: string): boolean {
+        const common = new Set(['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'would', 'could', 'there', 'their', 'what', 'about', 'which', 'when', 'make', 'like', 'time', 'just', 'know', 'take', 'into', 'year', 'your', 'some', 'them', 'than', 'then', 'look', 'only', 'come', 'over', 'such', 'also', 'back', 'after', 'with', 'this', 'that', 'from', 'they', 'will', 'more', 'how', 'does', 'what', 'does', 'work', 'using', 'file', 'code', 'function', 'class', 'method']);
+        return common.has(word.toLowerCase());
+    }
+
+    private calculateKeywordScore(content: string, keywords: string[]): number {
+        if (keywords.length === 0) return 0;
+        
+        const contentLower = content.toLowerCase();
+        let matches = 0;
+        
+        for (const keyword of keywords) {
+            if (contentLower.includes(keyword)) {
+                matches++;
+            }
+        }
+        
+        return matches / keywords.length;
+    }
+
+    private getFileTypeScore(relativePath: string): number {
+        const ext = path.extname(relativePath).toLowerCase();
+        const codeExtensions = ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.cpp', '.c', '.go', '.rs', '.cs', '.rb', '.php', '.swift', '.kt', '.scala'];
+        const docExtensions = ['.md', '.txt', '.rst', '.adoc'];
+        
+        if (codeExtensions.includes(ext)) return 1.0;
+        if (docExtensions.includes(ext)) return 0.3;
+        return 0.5;
+    }
+
+    private getChunkTypeScore(chunkType?: string): number {
+        if (!chunkType) return 0.5;
+        
+        const scores: Record<string, number> = {
+            'function': 1.0,
+            'method': 1.0,
+            'class': 0.9,
+            'interface': 0.8,
+            'struct': 0.8,
+            'enum': 0.7,
+            'import': 0.6,
+            'export': 0.6,
+            'declaration': 0.5,
+            'variable': 0.5,
+            'constant': 0.5,
+            'code': 0.5,
+        };
+        
+        return scores[chunkType] ?? 0.4;
     }
 
     async clearIndex(): Promise<void> {
@@ -265,7 +367,7 @@ export class LocalContext {
             return { indexed: false, fileCount: 0, chunkCount: 0 };
         }
 
-        const docs = await this.vectorDatabase.query(collectionName, '', ['id']);
+        const docs = await this.vectorDatabase.query(collectionName, '', ['id', 'relativePath']);
         const uniqueFiles = new Set(docs.map(d => d.relativePath));
 
         return {
