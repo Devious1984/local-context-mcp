@@ -263,6 +263,12 @@ Run directly:
 npx tsx src/index.ts
 ```
 
+## Security Note
+
+This package connects to **localhost only** (127.0.0.1:11434) when using the default Ollama embedding provider. No external network connections are made unless you configure a remote embedding provider (OpenAI, Gemini, or VoyageAI).
+
+The npm audit warning about "supply chain risk" for `http://127.0.0.1:11434` is a false positive - this is the local Ollama server endpoint, not an external URL.
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
