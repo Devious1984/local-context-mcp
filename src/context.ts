@@ -83,6 +83,7 @@ export class LocalContext {
     private supportedExtensions: string[];
     private ignorePatterns: string[];
     private rootPath: string;
+    private regexCache: Map<string, RegExp> = new Map();
 
     constructor(config: LocalContextConfig = {}) {
         this.embedding = config.embedding || createEmbedding();
@@ -478,7 +479,13 @@ export class LocalContext {
         const regexPattern = pattern
             .replace(/[.+^${}()|[\]\\]/g, '\\$&')
             .replace(/\*/g, '.*');
-        return new RegExp(`^${regexPattern}$`).test(text);
+        
+        let regex = this.regexCache.get(regexPattern);
+        if (!regex) {
+            regex = new RegExp(`^${regexPattern}$`);
+            this.regexCache.set(regexPattern, regex);
+        }
+        return regex.test(text);
     }
 
     private getLanguageFromExtension(ext: string): string {
