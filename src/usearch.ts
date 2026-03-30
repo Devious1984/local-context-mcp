@@ -46,6 +46,7 @@ export class USearchVectorDatabase implements VectorDatabase {
     private collections: Map<string, Index> = new Map();
     private metadata: Map<string, DocumentMetadata[]> = new Map();
     private persistPath: string;
+    private dirtyFlags: Map<string, boolean> = new Map();
 
     constructor(config: USearchConfig = {}) {
         this.config = config;
@@ -242,8 +243,16 @@ export class USearchVectorDatabase implements VectorDatabase {
         }
 
         this.metadata.set(collectionName, docs);
-        this.saveIndex(collectionName);
+        this.dirtyFlags.set(collectionName, true);
         console.error(`[USearchDB] Inserted ${documents.length} documents into '${collectionName}'`);
+    }
+
+    async flush(collectionName: string): Promise<void> {
+        if (this.dirtyFlags.get(collectionName)) {
+            this.saveIndex(collectionName);
+            this.dirtyFlags.set(collectionName, false);
+            console.error(`[USearchDB] Flushed collection '${collectionName}' to disk`);
+        }
     }
 
     async insertHybrid(collectionName: string, documents: VectorDocument[]): Promise<void> {

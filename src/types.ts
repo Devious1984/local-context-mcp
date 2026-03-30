@@ -58,6 +58,7 @@ export interface VectorDatabase {
     query(collectionName: string, filter: string, outputFields: string[], limit?: number): Promise<Record<string, any>[]>;
     getCollectionDescription(collectionName: string): Promise<string>;
     checkCollectionLimit(): Promise<boolean>;
+    flush(collectionName: string): Promise<void>;
 }
 
 export interface EmbeddingVector {

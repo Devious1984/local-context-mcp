@@ -202,6 +202,9 @@ export class LocalContext {
             });
         }
 
+        progressCallback?.({ phase: 'Saving index...', current: 95, total: 100, percentage: 95 });
+        await this.vectorDatabase.flush(this.getCollectionName());
+
         progressCallback?.({ phase: 'Indexing complete!', current: 100, total: 100, percentage: 100 });
         console.error(`[LocalContext] Indexed ${processedFiles} files, ${totalChunks} chunks`);
 
