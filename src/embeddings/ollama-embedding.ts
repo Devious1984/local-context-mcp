@@ -43,14 +43,16 @@ export class OllamaEmbedding extends Embedding {
     async embed(text: string): Promise<EmbeddingVector> {
         const processedText = this.preprocessText(text);
 
-        if (!this.dimensionDetected) {
-            this.dimension = await this.detectDimension();
-        }
-
         const response = await this.client.embed({
             model: this.config.model,
             input: processedText,
         });
+
+        if (!this.dimensionDetected) {
+            this.dimension = response.embeddings[0].length;
+            this.dimensionDetected = true;
+            console.error(`[OllamaEmbedding] Detected dimension: ${this.dimension}`);
+        }
 
         return {
             vector: response.embeddings[0],
@@ -61,14 +63,16 @@ export class OllamaEmbedding extends Embedding {
     async embedBatch(texts: string[]): Promise<EmbeddingVector[]> {
         const processedTexts = this.preprocessTexts(texts);
 
-        if (!this.dimensionDetected) {
-            this.dimension = await this.detectDimension();
-        }
-
         const response = await this.client.embed({
             model: this.config.model,
             input: processedTexts,
         });
+
+        if (!this.dimensionDetected && response.embeddings.length > 0) {
+            this.dimension = response.embeddings[0].length;
+            this.dimensionDetected = true;
+            console.error(`[OllamaEmbedding] Detected dimension: ${this.dimension}`);
+        }
 
         return response.embeddings.map((vector: number[]) => ({
             vector,
