@@ -1,0 +1,25 @@
+# Source files (only publish built dist/)
+src/
+*.ts
+!*.d.ts
+
+# Test files
+*.test.ts
+*.spec.ts
+vitest.config.ts
+
+# Development
+.git/
+.github/
+.vscode/
+node_modules/
+coverage/
+*.log
+
+# Docs (optional - uncomment if you want to exclude)
+# docs/
+
+# Config
+.env
+.env.*
+*.local

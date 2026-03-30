@@ -32,26 +32,113 @@ LOCAL_CONTEXT_PATH=/path/to/index npx local-context-mcp
 
 ## MCP Integration
 
-### Claude Code
+### Claude Code / Claude CLI
 
 ```bash
-claude mcp add local-context -- npx local-context-mcp
+claude mcp add local-context -- npx -y local-context-mcp
+```
+
+Or if installed globally:
+
+```bash
+claude mcp add local-context -- local-context-mcp
 ```
 
 ### OpenCode
 
-Add to your OpenCode config:
+Add to your OpenCode settings (`~/.opencode/settings.json` or project config):
 
 ```json
 {
-  "tools": [
-    {
-      "type": "mcp",
+  "mcpServers": {
+    "local-context": {
       "command": "npx",
-      "args": ["local-context-mcp"]
+      "args": ["-y", "local-context-mcp"],
+      "env": {
+        "LOCAL_CONTEXT_PATH": "${workspaceFolder}"
+      }
     }
-  ]
+  }
 }
+```
+
+Or using the global binary (if installed):
+
+```json
+{
+  "mcpServers": {
+    "local-context": {
+      "command": "local-context-mcp"
+    }
+  }
+}
+```
+
+### Cursor
+
+1. Open Cursor Settings (⌘, or Ctrl+,)
+2. Go to **Extensions** → **MCP**
+3. Click **Add new MCP server**
+4. Configure:
+   - Name: `local-context`
+   - Command: `npx`
+   - Arguments: `-y local-context-mcp`
+   - Environment variables (optional): `LOCAL_CONTEXT_PATH=/path/to/your/project`
+
+Or add to cursor settings JSON:
+
+```json
+{
+  "mcpServers": {
+    "local-context": {
+      "command": "npx",
+      "args": ["-y", "local-context-mcp"],
+      "env": {
+        "LOCAL_CONTEXT_PATH": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+### Windsurf (Codeium)
+
+1. Open Windsurf Settings
+2. Go to **Extensions** → **MCP**
+3. Add new server with:
+   - Command: `npx`
+   - Arguments: `-y local-context-mcp`
+
+### Other MCP Clients
+
+For other MCP-compatible tools, add the server with:
+
+- **npx**: `npx -y local-context-mcp`
+- **Global**: `local-context-mcp`
+- **Docker**: `docker run local-context-mcp`
+
+Set `LOCAL_CONTEXT_PATH` environment variable to specify which directory to index.
+
+## Installation
+
+### npm (Recommended)
+
+```bash
+npm install -g local-context-mcp
+```
+
+Or use directly with npx:
+
+```bash
+npx local-context-mcp
+```
+
+### Build from Source
+
+```bash
+npm install
+npm run build
+npm link  # Links globally for CLI use
 ```
 
 ## Tools
@@ -59,13 +146,13 @@ Add to your OpenCode config:
 | Tool | Description |
 |------|-------------|
 | `reindex` | Index the current codebase for semantic search. Use after adding/changing files. |
-| `search_code` | Search the indexed codebase using natural language. Returns code implementations first. |
+| `search` | Search the indexed codebase using natural language. Returns code implementations first. |
 | `status` | Get current indexing status (file count, chunk count). |
 
 ### Search Example
 
 ```
-> search_code: "async insert function"
+> search: "async insert function"
 ```
 
 Returns relevant code snippets with file paths and line numbers. Results prioritize code implementations over documentation.
