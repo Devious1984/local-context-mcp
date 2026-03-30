@@ -69,5 +69,6 @@ repos
 evaluation/retrieval_results*
 .venv/
 
-# Local search index (no longer used - keeping for reference)
-# .usearch/
+# Local search index (in project root)
+usearch_*.json
+usearch_*.usearch
