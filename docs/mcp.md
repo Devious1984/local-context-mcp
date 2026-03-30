@@ -7,7 +7,7 @@ local-context-mcp implements the Model Context Protocol for tool invocation.
 ```json
 {
   "name": "local-context-mcp",
-  "version": "0.1.0"
+  "version": "0.1.3"
 }
 ```
 
@@ -21,13 +21,7 @@ Index or reindex the current codebase directory.
 ```json
 {
   "type": "object",
-  "properties": {
-    "model": {
-      "type": "string",
-      "description": "Ollama embedding model to use (defaults to nomic-embed-text)",
-      "default": "nomic-embed-text"
-    }
-  },
+  "properties": {},
   "required": []
 }
 ```
@@ -42,9 +36,10 @@ Index or reindex the current codebase directory.
 ```
 
 **Notes:**
-- `forceReindex: true` - Drops existing collection before reindexing
+- Reindex always drops existing collection before indexing
 - Progress sent to stderr: `[Phase] XX%`
 - Returns count of indexed files and total chunks
+- Use `--path` CLI flag to index a specific directory
 
 ---
 
