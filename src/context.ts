@@ -86,12 +86,10 @@ export class LocalContext {
 
     constructor(config: LocalContextConfig = {}) {
         this.embedding = config.embedding || createEmbedding();
-        const rootPath = config.rootPath || process.env.LOCAL_CONTEXT_PATH || process.cwd();
-        const indexDir = config.indexDir || process.env.LOCAL_CONTEXT_INDEX_DIR || '.usearch';
-        const persistPath = path.join(rootPath, indexDir);
+        this.rootPath = config.rootPath || process.env.LOCAL_CONTEXT_PATH || process.cwd();
         
         this.vectorDatabase = config.vectorDatabase || new USearchVectorDatabase({
-            persistPath
+            persistPath: this.rootPath
         });
         this.codeSplitter = new AstCodeSplitter(2500, 300);
         this.supportedExtensions = [
@@ -102,10 +100,8 @@ export class LocalContext {
             ...DEFAULT_IGNORE_PATTERNS,
             ...(config.ignorePatterns || [])
         ];
-        this.rootPath = rootPath;
 
         console.error(`[LocalContext] Initialized at: ${this.rootPath}`);
-        console.error(`[LocalContext] Index dir: ${persistPath}`);
         console.error(`[LocalContext] Embedding: ${this.embedding.getProvider()}`);
     }
 
