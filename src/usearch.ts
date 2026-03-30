@@ -138,7 +138,9 @@ export class USearchVectorDatabase implements VectorDatabase {
         const collMetaPath = this.getCollectionMetaPath(collectionName);
         if (await this.pathExists(collMetaPath)) {
             const existingMeta: CollectionMetadata = JSON.parse(await fs.promises.readFile(collMetaPath, 'utf-8'));
-            existingMeta.dimension = index.size() > 0 ? 1536 : existingMeta.dimension;
+            const docs = this.metadata.get(collectionName) || [];
+            const actualDimension = docs.length > 0 ? docs[0].vector.length : existingMeta.dimension;
+            existingMeta.dimension = index.size() > 0 ? actualDimension : existingMeta.dimension;
             await fs.promises.writeFile(metaPath, JSON.stringify(existingMeta, null, 2));
         }
     }
@@ -177,6 +179,7 @@ export class USearchVectorDatabase implements VectorDatabase {
         const meta: CollectionMetadata = { dimension, description };
         await fs.promises.writeFile(this.getCollectionMetaPath(collectionName), JSON.stringify(meta, null, 2));
         await fs.promises.writeFile(this.getMetadataPath(collectionName), '[]');
+        index.save(indexPath);
 
         console.error(`[USearchDB] Created collection '${collectionName}'`);
     }
@@ -300,7 +303,7 @@ export class USearchVectorDatabase implements VectorDatabase {
                 searchResults.push({
                     document: {
                         id: doc.id,
-                        vector: queryVector,
+                        vector: doc.vector,
                         content: doc.content,
                         relativePath: doc.relativePath,
                         startLine: doc.startLine,
