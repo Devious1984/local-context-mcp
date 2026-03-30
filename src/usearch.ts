@@ -51,8 +51,11 @@ export class USearchVectorDatabase implements VectorDatabase {
     constructor(config: USearchConfig = {}) {
         this.config = config;
         this.persistPath = config.persistPath || process.cwd();
+    }
+
+    async initialize(): Promise<void> {
         if (!fs.existsSync(this.persistPath)) {
-            fs.mkdirSync(this.persistPath, { recursive: true });
+            await fs.promises.mkdir(this.persistPath, { recursive: true });
         }
     }
 
@@ -68,6 +71,15 @@ export class USearchVectorDatabase implements VectorDatabase {
         return path.join(this.persistPath, `usearch_coll_${collectionName}.json`);
     }
 
+    private async pathExists(filePath: string): Promise<boolean> {
+        try {
+            await fs.promises.access(filePath);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     private async loadCollectionIfNeeded(collectionName: string): Promise<void> {
         if (this.collections.has(collectionName)) {
             return;
@@ -76,16 +88,19 @@ export class USearchVectorDatabase implements VectorDatabase {
         const indexPath = this.getIndexPath(collectionName);
         const metadataPath = this.getMetadataPath(collectionName);
 
-        if (fs.existsSync(indexPath) && fs.existsSync(metadataPath)) {
+        const indexExists = await this.pathExists(indexPath);
+        const metadataExists = await this.pathExists(metadataPath);
+
+        if (indexExists && metadataExists) {
             try {
-                const metaData = fs.readFileSync(metadataPath, 'utf-8');
+                const metaData = await fs.promises.readFile(metadataPath, 'utf-8');
                 const docs: DocumentMetadata[] = JSON.parse(metaData);
                 this.metadata.set(collectionName, docs);
 
                 const collMetaPath = this.getCollectionMetaPath(collectionName);
                 let dimension = 1536;
-                if (fs.existsSync(collMetaPath)) {
-                    const collMeta: CollectionMetadata = JSON.parse(fs.readFileSync(collMetaPath, 'utf-8'));
+                if (await this.pathExists(collMetaPath)) {
+                    const collMeta: CollectionMetadata = JSON.parse(await fs.promises.readFile(collMetaPath, 'utf-8'));
                     dimension = collMeta.dimension;
                 }
 
@@ -109,39 +124,39 @@ export class USearchVectorDatabase implements VectorDatabase {
         }
     }
 
-    private saveCollectionMetadata(collectionName: string): void {
+    private async saveCollectionMetadata(collectionName: string): Promise<void> {
         const metadataPath = this.getMetadataPath(collectionName);
         const docs = this.metadata.get(collectionName) || [];
-        fs.writeFileSync(metadataPath, JSON.stringify(docs, null, 2));
+        await fs.promises.writeFile(metadataPath, JSON.stringify(docs, null, 2));
     }
 
-    private saveCollectionMeta(collectionName: string): void {
+    private async saveCollectionMeta(collectionName: string): Promise<void> {
         const index = this.collections.get(collectionName);
         if (!index) return;
 
         const metaPath = this.getCollectionMetaPath(collectionName);
         const collMetaPath = this.getCollectionMetaPath(collectionName);
-        if (fs.existsSync(collMetaPath)) {
-            const existingMeta: CollectionMetadata = JSON.parse(fs.readFileSync(collMetaPath, 'utf-8'));
+        if (await this.pathExists(collMetaPath)) {
+            const existingMeta: CollectionMetadata = JSON.parse(await fs.promises.readFile(collMetaPath, 'utf-8'));
             existingMeta.dimension = index.size() > 0 ? 1536 : existingMeta.dimension;
-            fs.writeFileSync(metaPath, JSON.stringify(existingMeta, null, 2));
+            await fs.promises.writeFile(metaPath, JSON.stringify(existingMeta, null, 2));
         }
     }
 
-    private saveIndex(collectionName: string): void {
+    private async saveIndex(collectionName: string): Promise<void> {
         const index = this.collections.get(collectionName);
         if (!index) return;
 
         const indexPath = this.getIndexPath(collectionName);
         index.save(indexPath);
-        this.saveCollectionMetadata(collectionName);
+        await this.saveCollectionMetadata(collectionName);
     }
 
     async createCollection(collectionName: string, dimension: number, description?: string): Promise<void> {
         console.error(`[USearchDB] Creating collection '${collectionName}' with dimension ${dimension}`);
 
         const indexPath = this.getIndexPath(collectionName);
-        if (fs.existsSync(indexPath)) {
+        if (await this.pathExists(indexPath)) {
             console.error(`[USearchDB] Collection '${collectionName}' already exists, loading...`);
             await this.loadCollectionIfNeeded(collectionName);
             return;
@@ -160,8 +175,8 @@ export class USearchVectorDatabase implements VectorDatabase {
         this.metadata.set(collectionName, []);
 
         const meta: CollectionMetadata = { dimension, description };
-        fs.writeFileSync(this.getCollectionMetaPath(collectionName), JSON.stringify(meta, null, 2));
-        fs.writeFileSync(this.getMetadataPath(collectionName), '[]');
+        await fs.promises.writeFile(this.getCollectionMetaPath(collectionName), JSON.stringify(meta, null, 2));
+        await fs.promises.writeFile(this.getMetadataPath(collectionName), '[]');
 
         console.error(`[USearchDB] Created collection '${collectionName}'`);
     }
@@ -177,9 +192,9 @@ export class USearchVectorDatabase implements VectorDatabase {
         const metadataPath = this.getMetadataPath(collectionName);
         const collMetaPath = this.getCollectionMetaPath(collectionName);
 
-        if (fs.existsSync(indexPath)) fs.unlinkSync(indexPath);
-        if (fs.existsSync(metadataPath)) fs.unlinkSync(metadataPath);
-        if (fs.existsSync(collMetaPath)) fs.unlinkSync(collMetaPath);
+        if (await this.pathExists(indexPath)) await fs.promises.unlink(indexPath);
+        if (await this.pathExists(metadataPath)) await fs.promises.unlink(metadataPath);
+        if (await this.pathExists(collMetaPath)) await fs.promises.unlink(collMetaPath);
 
         this.collections.delete(collectionName);
         this.metadata.delete(collectionName);
@@ -190,11 +205,13 @@ export class USearchVectorDatabase implements VectorDatabase {
     async hasCollection(collectionName: string): Promise<boolean> {
         const indexPath = this.getIndexPath(collectionName);
         const metadataPath = this.getMetadataPath(collectionName);
-        return fs.existsSync(indexPath) && fs.existsSync(metadataPath);
+        const indexExists = await this.pathExists(indexPath);
+        const metadataExists = await this.pathExists(metadataPath);
+        return indexExists && metadataExists;
     }
 
     async listCollections(): Promise<string[]> {
-        const files = fs.readdirSync(this.persistPath);
+        const files = await fs.promises.readdir(this.persistPath);
         const collections = new Set<string>();
 
         for (const file of files) {
@@ -396,8 +413,8 @@ export class USearchVectorDatabase implements VectorDatabase {
 
     async getCollectionDescription(collectionName: string): Promise<string> {
         const collMetaPath = this.getCollectionMetaPath(collectionName);
-        if (fs.existsSync(collMetaPath)) {
-            const meta: CollectionMetadata = JSON.parse(fs.readFileSync(collMetaPath, 'utf-8'));
+        if (await this.pathExists(collMetaPath)) {
+            const meta: CollectionMetadata = JSON.parse(await fs.promises.readFile(collMetaPath, 'utf-8'));
             return meta.description || '';
         }
         return '';
