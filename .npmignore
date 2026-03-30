@@ -23,3 +23,8 @@ coverage/
 .env
 .env.*
 *.local
+
+# Local test data (index files)
+.usearch
+usearch_*.json
+usearch_*.usearch
