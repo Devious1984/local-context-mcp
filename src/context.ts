@@ -142,49 +142,64 @@ export class LocalContext {
         }
 
         const EMBEDDING_BATCH_SIZE = 100;
+        const FILE_CONCURRENCY = 10;
         const CHUNK_LIMIT = 450000;
-        let chunkBuffer: CodeChunk[] = [];
-        let processedFiles = 0;
-        let totalChunks = 0;
 
-        for (let i = 0; i < codeFiles.length; i++) {
-            const filePath = codeFiles[i];
-
+        const readFile = async (filePath: string): Promise<CodeChunk[]> => {
             try {
                 const content = await fs.promises.readFile(filePath, 'utf-8');
                 const language = this.getLanguageFromExtension(path.extname(filePath));
-                const chunks = await this.codeSplitter.split(content, language, filePath);
+                return await this.codeSplitter.split(content, language, filePath);
+            } catch (error) {
+                console.error(`[LocalContext] Skipping ${filePath}: ${error}`);
+                return [];
+            }
+        };
+
+        let allChunks: CodeChunk[] = [];
+        let processedFiles = 0;
+
+        for (let i = 0; i < codeFiles.length; i += FILE_CONCURRENCY) {
+            const batch = codeFiles.slice(i, i + FILE_CONCURRENCY);
+            const chunkResults = await Promise.all(batch.map(f => readFile(f)));
+
+            for (const chunks of chunkResults) {
+                processedFiles++;
+                progressCallback?.({
+                    phase: `Reading files (${processedFiles}/${codeFiles.length})...`,
+                    current: processedFiles,
+                    total: codeFiles.length,
+                    percentage: Math.round((processedFiles / codeFiles.length) * 50)
+                });
 
                 for (const chunk of chunks) {
-                    chunkBuffer.push(chunk);
-                    totalChunks++;
-
-                    if (chunkBuffer.length >= EMBEDDING_BATCH_SIZE) {
-                        await this.processChunkBatch(chunkBuffer);
-                        chunkBuffer = [];
-                    }
-
-                    if (totalChunks >= CHUNK_LIMIT) {
+                    allChunks.push(chunk);
+                    if (allChunks.length >= CHUNK_LIMIT) {
                         console.error(`[LocalContext] Chunk limit reached`);
                         break;
                     }
                 }
-
-                processedFiles++;
-                progressCallback?.({
-                    phase: `Processing files (${processedFiles}/${codeFiles.length})...`,
-                    current: processedFiles,
-                    total: codeFiles.length,
-                    percentage: Math.round((processedFiles / codeFiles.length) * 90) + 10
-                });
-
-            } catch (error) {
-                console.error(`[LocalContext] Skipping ${filePath}: ${error}`);
+                if (allChunks.length >= CHUNK_LIMIT) break;
             }
+            if (allChunks.length >= CHUNK_LIMIT) break;
         }
 
-        if (chunkBuffer.length > 0) {
-            await this.processChunkBatch(chunkBuffer);
+        console.error(`[LocalContext] Read ${allChunks.length} chunks from ${processedFiles} files`);
+
+        progressCallback?.({ phase: 'Generating embeddings...', current: 50, total: 100, percentage: 50 });
+
+        let totalChunks = 0;
+        for (let i = 0; i < allChunks.length; i += EMBEDDING_BATCH_SIZE) {
+            const batch = allChunks.slice(i, i + EMBEDDING_BATCH_SIZE);
+            await this.processChunkBatch(batch);
+            totalChunks += batch.length;
+
+            progressCallback?.({
+                phase: `Embedding chunks (${totalChunks}/${allChunks.length})...`,
+                current: 50 + Math.round((totalChunks / allChunks.length) * 50),
+                total: 100,
+                percentage: 50 + Math.round((totalChunks / allChunks.length) * 50)
+            });
         }
 
         progressCallback?.({ phase: 'Indexing complete!', current: 100, total: 100, percentage: 100 });
