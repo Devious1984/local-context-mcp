@@ -15,7 +15,6 @@
 	"typescript.preferences.includePackageJsonAutoImports": "on",
 	// ESLint settings
 	"eslint.workingDirectories": [
-		"packages/vscode-extension",
 		"packages/core"
 	],
 	// Format on save

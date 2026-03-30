@@ -1,1 +1,0 @@
-export { EnvManager, envManager } from './env-manager'; 
