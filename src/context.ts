@@ -20,6 +20,7 @@ import {
 import {
     USearchVectorDatabase
 } from './usearch.js';
+import { detectSubmodule } from './submodule-utils.js';
 
 const DEFAULT_SUPPORTED_EXTENSIONS = [
     '.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.cpp', '.c', '.h', '.hpp',
@@ -87,7 +88,17 @@ export class LocalContext {
 
     constructor(config: LocalContextConfig = {}) {
         this.embedding = config.embedding || createEmbedding();
-        this.rootPath = config.rootPath || process.env.LOCAL_CONTEXT_PATH || process.cwd();
+
+        let resolvedPath = config.rootPath || process.env.LOCAL_CONTEXT_PATH || process.cwd();
+        resolvedPath = path.resolve(resolvedPath);
+
+        const submoduleInfo = detectSubmodule(resolvedPath);
+        if (submoduleInfo.isSubmodule && submoduleInfo.superprojectRoot) {
+            console.error(`[LocalContext] Submodule detected → superproject: ${submoduleInfo.superprojectRoot}`);
+            resolvedPath = submoduleInfo.superprojectRoot;
+        }
+
+        this.rootPath = resolvedPath;
         
         this.vectorDatabase = config.vectorDatabase || new USearchVectorDatabase({
             persistPath: this.rootPath
@@ -97,13 +108,13 @@ export class LocalContext {
             ...DEFAULT_SUPPORTED_EXTENSIONS,
             ...(config.supportedExtensions || [])
         ];
+        console.error(`[LocalContext] Initialized at: ${this.rootPath}`);
+        console.error(`[LocalContext] Embedding: ${this.embedding.getProvider()}`);
+
         this.ignorePatterns = [
             ...DEFAULT_IGNORE_PATTERNS,
             ...(config.ignorePatterns || [])
         ];
-
-        console.error(`[LocalContext] Initialized at: ${this.rootPath}`);
-        console.error(`[LocalContext] Embedding: ${this.embedding.getProvider()}`);
     }
 
     getRootPath(): string {

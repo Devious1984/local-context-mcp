@@ -6,6 +6,7 @@ A fully local-first semantic code search engine exposed via MCP (Model Context P
 
 - **Local-first**: Works entirely offline using USearch as the vector database
 - **Zero-config**: Automatically targets the current working directory
+- **Submodule-aware**: When working inside a git submodule, automatically indexes from the meta-repo root
 - **MCP-based**: Integrates with Claude Code, OpenCode, and other MCP-compatible tools
 - **Flexible embeddings**: Supports Ollama (default), OpenAI, Gemini, and VoyageAI
 - **Fast**: In-memory vector search with optional persistence
@@ -135,6 +136,15 @@ For other MCP-compatible tools, add the server with:
 - **Docker**: `docker run local-context-mcp`
 
 Set `LOCAL_CONTEXT_PATH` environment variable to specify which directory to index.
+
+## Git Submodules
+
+When running from inside a git submodule, the tool automatically detects the submodule and resolves to the superproject (meta-repo) root for indexing and searching. This means:
+
+- All code in the meta-repo is indexed, including all submodules
+- Search results span the entire project, not just the current submodule
+- No configuration needed — detection is automatic using `git rev-parse --show-superproject-working-tree`
+- Falls back gracefully if not in a git repo or git version is too old
 
 ## Installation
 
