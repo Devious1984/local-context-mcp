@@ -14,6 +14,7 @@ function createOllamaEmbedding(): Embedding {
     return new OllamaEmbedding({
         model: env('OLLAMA_MODEL') || 'nomic-embed-text',
         host: env('OLLAMA_BASE_URL') || 'http://127.0.0.1:11434',
+        timeoutMs: parseInt(env('OLLAMA_TIMEOUT') || '60000', 10),
     });
 }
 

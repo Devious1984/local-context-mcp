@@ -142,8 +142,8 @@ export class LocalContext {
             return { indexedFiles: 0, totalChunks: 0, status: 'completed' };
         }
 
-        const EMBEDDING_BATCH_SIZE = 100;
-        const FILE_CONCURRENCY = 10;
+        const EMBEDDING_BATCH_SIZE = 10;
+        const FILE_CONCURRENCY = 5;
         const CHUNK_LIMIT = 450000;
 
         const readFile = async (filePath: string): Promise<CodeChunk[]> => {
@@ -363,6 +363,74 @@ export class LocalContext {
         };
         
         return scores[chunkType] ?? 0.4;
+    }
+
+    async indexChangedFiles(
+        changedFiles: string[],
+        progressCallback?: (progress: { phase: string; current: number; total: number; percentage: number }) => void
+    ): Promise<{ indexedFiles: number; removedFiles: number; totalChunks: number }> {
+        const collectionName = this.getCollectionName();
+        const exists = await this.vectorDatabase.hasCollection(collectionName);
+
+        if (!exists) {
+            const result = await this.indexCodebase(progressCallback, false);
+            return { indexedFiles: result.indexedFiles, removedFiles: 0, totalChunks: result.totalChunks };
+        }
+
+        let removedCount = 0;
+        const existingDocs = await this.vectorDatabase.query(collectionName, '', ['id', 'relativePath']);
+
+        for (const changedFile of changedFiles) {
+            const relativePath = path.relative(this.rootPath, changedFile).replace(/\\/g, '/');
+            const staleDocs = existingDocs.filter(d => d.relativePath === relativePath);
+            if (staleDocs.length > 0) {
+                await this.vectorDatabase.delete(collectionName, staleDocs.map(d => d.id));
+                removedCount += staleDocs.length;
+            }
+        }
+
+        progressCallback?.({ phase: 'Reading changed files...', current: 0, total: 100, percentage: 0 });
+
+        const chunks: CodeChunk[] = [];
+        for (let i = 0; i < changedFiles.length; i++) {
+            const filePath = changedFiles[i];
+            try {
+                const content = await fs.promises.readFile(filePath, 'utf-8');
+                const language = this.getLanguageFromExtension(path.extname(filePath));
+                const fileChunks = await this.codeSplitter.split(content, language, filePath);
+                chunks.push(...fileChunks);
+            } catch (error) {
+                console.error(`[LocalContext] Skipping ${filePath}: ${error}`);
+            }
+            progressCallback?.({
+                phase: `Reading files (${i + 1}/${changedFiles.length})...`,
+                current: Math.round((i + 1) / changedFiles.length * 50),
+                total: 100,
+                percentage: Math.round((i + 1) / changedFiles.length * 50),
+            });
+        }
+
+        progressCallback?.({ phase: 'Generating embeddings...', current: 50, total: 100, percentage: 50 });
+
+        const EMBEDDING_BATCH_SIZE = 10;
+        let totalChunks = 0;
+        for (let i = 0; i < chunks.length; i += EMBEDDING_BATCH_SIZE) {
+            const batch = chunks.slice(i, i + EMBEDDING_BATCH_SIZE);
+            await this.processChunkBatch(batch);
+            totalChunks += batch.length;
+
+            progressCallback?.({
+                phase: `Embedding chunks (${totalChunks}/${chunks.length})...`,
+                current: 50 + Math.round((totalChunks / chunks.length) * 50),
+                total: 100,
+                percentage: 50 + Math.round((totalChunks / chunks.length) * 50),
+            });
+        }
+
+        await this.vectorDatabase.flush(collectionName);
+        console.error(`[LocalContext] Incremental: ${changedFiles.length} files, +${totalChunks} chunks, -${removedCount} stale`);
+
+        return { indexedFiles: changedFiles.length, removedFiles: removedCount, totalChunks };
     }
 
     async clearIndex(): Promise<void> {

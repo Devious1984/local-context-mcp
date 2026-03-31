@@ -18,6 +18,7 @@ import {
     CallToolRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import { LocalContext, createLocalContext } from './context.js';
+import { startWatchMode } from './watcher.js';
 
 class LocalContextMcpServer {
     private server: Server;
@@ -176,6 +177,7 @@ class LocalContextMcpServer {
 interface CliArgs {
     path?: string;
     indexDir?: string;
+    watch?: boolean;
     help?: boolean;
 }
 
@@ -194,6 +196,10 @@ function parseArgs(): CliArgs {
             case '-i':
                 args.indexDir = argv[++i];
                 break;
+            case '--watch':
+            case '-w':
+                args.watch = true;
+                break;
             case '--help':
             case '-h':
                 args.help = true;
@@ -209,21 +215,41 @@ function printHelp() {
 Options:
   --path, -p <dir>      Directory to index (default: current directory)
   --index-dir, -i <dir> Directory for index storage (default: .usearch)
+  --watch, -w           Watch mode: auto-reindex on file changes
   --help, -h            Show this help message`);
 }
 
 async function main() {
     const args = parseArgs();
-    
+
     if (args.help) {
         printHelp();
         process.exit(0);
     }
-    
+
     const context = createLocalContext({
         rootPath: args.path,
         indexDir: args.indexDir
     });
+
+    if (args.watch) {
+        console.error('[CLI] Starting in watch mode...');
+
+        const status = await context.getStatus();
+        if (!status.indexed || status.fileCount === 0) {
+            console.error('[CLI] No index found, running initial index...');
+            await context.indexCodebase(
+                (progress) => {
+                    console.error(`[CLI] ${progress.phase} ${progress.percentage}%`);
+                },
+                true
+            );
+        }
+
+        await startWatchMode(context.getRootPath(), context);
+        return;
+    }
+
     const server = new LocalContextMcpServer(context);
     await server.start();
 }
