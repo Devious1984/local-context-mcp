@@ -1,6 +1,6 @@
 {
     "name": "local-context-mcp",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "description": "Local semantic code search via MCP - works offline, indexes current directory",
     "type": "module",
     "bin": {
