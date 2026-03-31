@@ -246,8 +246,9 @@ async function main() {
             );
         }
 
-        await startWatchMode(context.getRootPath(), context);
-        return;
+        startWatchMode(context.getRootPath(), context).catch((error) => {
+            console.error(`[CLI] Watch mode error:`, error);
+        });
     }
 
     const server = new LocalContextMcpServer(context);

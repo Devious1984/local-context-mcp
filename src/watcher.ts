@@ -124,5 +124,6 @@ export async function startWatchMode(
         process.exit(0);
     });
 
-    await new Promise(() => {});
+    // Don't block — let caller continue (e.g. start MCP server)
+    // chokidar keeps the event loop alive via its persistent watcher
 }
