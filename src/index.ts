@@ -235,24 +235,31 @@ async function main() {
     if (args.watch) {
         console.error('[CLI] Starting in watch mode...');
 
+        // Start watcher and server first, index in background
+        startWatchMode(context.getRootPath(), context).catch((error) => {
+            console.error(`[CLI] Watch mode error:`, error);
+        });
+
+        const server = new LocalContextMcpServer(context);
+        await server.start();
+
+        // Index in background after server is ready
         const status = await context.getStatus();
         if (!status.indexed || status.fileCount === 0) {
-            console.error('[CLI] No index found, running initial index...');
-            await context.indexCodebase(
+            console.error('[CLI] No index found, running initial index in background...');
+            context.indexCodebase(
                 (progress) => {
                     console.error(`[CLI] ${progress.phase} ${progress.percentage}%`);
                 },
                 true
-            );
+            ).catch((error) => {
+                console.error(`[CLI] Initial index failed:`, error);
+            });
         }
-
-        startWatchMode(context.getRootPath(), context).catch((error) => {
-            console.error(`[CLI] Watch mode error:`, error);
-        });
+    } else {
+        const server = new LocalContextMcpServer(context);
+        await server.start();
     }
-
-    const server = new LocalContextMcpServer(context);
-    await server.start();
 }
 
 main().catch((error) => {
