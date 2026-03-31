@@ -22,6 +22,7 @@ This indexes the current directory and starts the MCP server. First run may take
 
 ```bash
 local-context-mcp --path /path/to/index    # Directory to index
+local-context-mcp --watch                   # Watch mode: auto-reindex on file changes
 local-context-mcp --help                    # Show help
 ```
 
@@ -29,6 +30,22 @@ Or set environment variable:
 ```bash
 LOCAL_CONTEXT_PATH=/path/to/index npx local-context-mcp
 ```
+
+### Watch Mode
+
+Use `--watch` to automatically reindex changed files in real-time:
+
+```bash
+local-context-mcp --watch --path /path/to/project
+```
+
+The MCP server starts immediately and the initial index runs in the background. After that, any file changes trigger an incremental reindex within 2 seconds. This is the recommended mode for active development sessions.
+
+In watch mode:
+- **Initial index** runs in background if no index exists
+- **Incremental updates** only re-embed changed files (fast)
+- **Debounced** at 2 seconds to batch rapid saves from editors
+- Supports file additions, modifications, and deletions
 
 ## MCP Integration
 
@@ -53,7 +70,7 @@ Add to your OpenCode settings (`~/.opencode/settings.json` or project config):
   "mcpServers": {
     "local-context": {
       "command": "npx",
-      "args": ["-y", "local-context-mcp"],
+      "args": ["-y", "local-context-mcp", "--watch"],
       "env": {
         "LOCAL_CONTEXT_PATH": "${workspaceFolder}"
       }
@@ -81,9 +98,9 @@ Or using the global binary (if installed):
 3. Click **Add new MCP server**
 4. Configure:
    - Name: `local-context`
-   - Command: `npx`
-   - Arguments: `-y local-context-mcp`
-   - Environment variables (optional): `LOCAL_CONTEXT_PATH=/path/to/your/project`
+    - Command: `npx`
+    - Arguments: `-y local-context-mcp --watch`
+    - Environment variables (optional): `LOCAL_CONTEXT_PATH=/path/to/your/project`
 
 Or add to cursor settings JSON:
 
@@ -92,7 +109,7 @@ Or add to cursor settings JSON:
   "mcpServers": {
     "local-context": {
       "command": "npx",
-      "args": ["-y", "local-context-mcp"],
+      "args": ["-y", "local-context-mcp", "--watch"],
       "env": {
         "LOCAL_CONTEXT_PATH": "${workspaceFolder}"
       }
@@ -107,7 +124,7 @@ Or add to cursor settings JSON:
 2. Go to **Extensions** → **MCP**
 3. Add new server with:
    - Command: `npx`
-   - Arguments: `-y local-context-mcp`
+    - Arguments: `-y local-context-mcp --watch`
 
 ### Other MCP Clients
 
