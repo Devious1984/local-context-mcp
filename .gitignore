@@ -59,8 +59,6 @@ __pycache__/
 !evaluation/case_study/**/*.log
 
 .claude/*
-CLAUDE.md
-AGENTS.md
 
 .cursor/*
 
@@ -73,3 +71,4 @@ evaluation/retrieval_results*
 # Local search index (in project root)
 usearch_*.json
 usearch_*.usearch
+.worktrees/
